@@ -1,3 +1,6 @@
+from math import  sqrt, sinh, cosh
+
+
 class HeatSink:
     def __init__(self,
                  baseLength: float = 0.865,
@@ -12,6 +15,7 @@ class HeatSink:
                  pipeWeight: float = 1.4135,
                  contactConductivity: float = 3,
                  timThickness: float = 0.001,
+                 h_bar: float = 16.8,
                  ):
 
         self.noFinsLength = round(noFinsLength)
@@ -51,3 +55,30 @@ class HeatSink:
 
         self.contactConductivity = contactConductivity
         self.timThickness = timThickness
+        self.h_hs = h_bar
+
+    def base_temperature(self, t_2, Q_hs_cond):
+        return t_2 - Q_hs_cond / self.baseArea * self.baseDepth / self.conductivity
+
+    def tim_temperature(self, t_2, Q_solar):
+        return t_2 + Q_solar * self.timThickness / (self.contactConductivity * self.baseArea)
+
+    def fin_convection(self, t_b, fluid_properties):
+        def calculate_fin_constants(h_bar, p, k, a_c, t_b, t_inf):
+           m = sqrt((h_bar * p) / (k * a_c))
+           M = sqrt(h_bar * p * k * a_c) * (t_b - t_inf)
+           return m, M
+
+        m, M = calculate_fin_constants(self.h_hs, self.finPerimeter, self.conductivity,
+                                        self.finArea, t_b, fluid_properties.T_inf)
+
+        finTipHeatTransfer = self.noFins * M * (sinh(m * self.finDepth) +
+                                                            (self.h_hs / (m * self.conductivity))
+                                                         * cosh(m * self.finDepth)) / \
+                                 (cosh(m * self.finDepth) +
+                                  (self.h_hs / (m * self.conductivity)) *
+                                  sinh(m * self.finDepth))
+        finHeatTransfer = finTipHeatTransfer + self.noFins * self.h_hs * self.finPerimeter * \
+                              self.finDepth * (t_b - fluid_properties.T_inf)
+
+        return finHeatTransfer

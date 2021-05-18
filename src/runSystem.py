@@ -1,6 +1,7 @@
 from heatSink import HeatSink
 from waterPipes import WaterPipes
 from solarPanel import SolarPanel
+from fluidProperties import FluidProperties
 from system import System
 import matplotlib.pyplot as plt
 
@@ -18,10 +19,11 @@ for i in range(0, 92):
                          finDepth=0.035)
     solar_panel = SolarPanel()
     water_pipes = WaterPipes()
+    fluid_properties = FluidProperties()
     system = System(heat_sink=heat_sink,
                     solar_panel=solar_panel,
                     water_pipes=water_pipes,
-                    ambient_temp=30,
+                    fluid_properties=fluid_properties,
                     flow_rate=0.002138/23,
                     flow_temp=inlet_temp)
     system.update()
