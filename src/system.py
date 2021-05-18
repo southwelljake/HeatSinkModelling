@@ -10,8 +10,9 @@ class System:
                  heat_sink: HeatSink,
                  solar_panel: SolarPanel,
                  water_pipes: WaterPipes,
+                 active_cooling: bool = True,
                  ambient_temp: float = 30,
-                 flow_rate: float = 0.0036,
+                 flow_rate: float = 0.00006,
                  flow_temp: float = 30,
                  max_surface_temp: float = 70,
                  ):
@@ -20,6 +21,7 @@ class System:
         self.solarPanel = solar_panel
         self.waterPipes = water_pipes
 
+        self.active = active_cooling
         self.T_inf = ambient_temp
 
         self.inletFlowRate = flow_rate
@@ -31,9 +33,9 @@ class System:
 
         self.max_T_s = max_surface_temp
 
-        self.T_1 = 0
-        self.T_2 = 45
-        self.T_b = 0
+        self.T_1 = 0  # Panel front surface temperature
+        self.T_2 = 45  # Panel back surface temperature
+        self.T_b = 0  # Heat Sink base temperature
 
         self.Q_solar = 0
         self.Q_panel_conv = 0
@@ -49,21 +51,27 @@ class System:
 
     def update(self):
         self.q_solar = self.solar_radiation(self.max_T_s, self.T_inf, self.get_air_properties(self.max_T_s, self.T_inf))
+        self.Q_solar = self.q_solar * self.solarPanel.panelArea
 
         # Guess Convection Rate of Fins
-        h_bar = 25  # W/m2K
+        h_bar = 16.8  # W/m2K
 
-        self.calculate_heat_transfer(self.T_2, h_bar)
-        error = self.calculate_error(self.Q_solar, self.Q_panel_conv, self.Q_fins, self.Q_pipes)
+        # Shooting Method
+        a = [self.T_inf + 5, self.T_inf + 20]
+        x = [self.calculate_heat_transfer(a[0], h_bar),
+             self.calculate_heat_transfer(a[1], h_bar)]
+        e = [x[0] - self.Q_solar, x[1] - self.Q_solar]
 
-        while abs(error) > 10:
-            if error > 0:
-                self.T_2 += 0.01
-            else:
-                self.T_2 -= 0.01
+        n = 1
+        while abs(e[n]) > 0.1 and n < 1000:
+            a.append(a[n] - e[n] * (a[n] - a[n-1])/(e[n] - e[n-1]))
+            x.append(self.calculate_heat_transfer(a[n+1], h_bar))
+            e.append(x[-1] - self.Q_solar)
+            n += 1
 
-            self.calculate_heat_transfer(self.T_2, h_bar)
-            error = self.calculate_error(self.Q_solar, self.Q_panel_conv, self.Q_fins, self.Q_pipes)
+        self.T_2 = a[-1]
+        self.T_1 = self.T_2 + self.Q_solar * self.heatSink.timThickness / \
+            (self.heatSink.contactConductivity * self.heatSink.baseArea)
 
     def get_air_properties(self, t_s, t_inf):
         dry_air = {
@@ -120,7 +128,10 @@ class System:
                      0.825 + (0.387 * ra ** (1 / 6)) / ((1 + (0.492 / properties["Pr"]) ** (9 / 16)) ** (8 / 27))
              ) ** 2
         h = nu * properties["k"] / plate_length
-        return h
+        if t_s < t_inf:
+            return 0
+        else:
+            return h
 
     def solar_radiation(self, t_s, t_inf, properties):
         h = self.vertical_plate(properties, self.solarPanel.panelWidth, self.solarPanel.panelAngle, t_s, t_inf)
@@ -139,9 +150,16 @@ class System:
         m, M = calculate_fin_constants(h_hs, self.heatSink.finPerimeter, self.heatSink.conductivity,
                                        self.heatSink.finArea, t_b, self.T_inf)
 
-        return self.heatSink.noFins * M * (sinh(m * self.heatSink.finDepth) + (h_hs / (m * self.heatSink.conductivity))
-                                           * cosh(m * self.heatSink.finDepth)) / (cosh(m * self.heatSink.finDepth) +
-                                        (h_hs / (m * self.heatSink.conductivity)) * sinh(m * self.heatSink.finDepth))
+        finTipHeatTransfer = self.heatSink.noFins * M * (sinh(m * self.heatSink.finDepth) +
+                                                         (h_hs / (m * self.heatSink.conductivity))
+                                                         * cosh(m * self.heatSink.finDepth)) / \
+                                                        (cosh(m * self.heatSink.finDepth) +
+                                                             (h_hs / (m * self.heatSink.conductivity)) *
+                                                         sinh(m * self.heatSink.finDepth))
+        finHeatTransfer = finTipHeatTransfer + self.heatSink.noFins * h_hs * self.heatSink.finPerimeter * \
+            self.heatSink.finDepth * (t_b - self.T_inf)
+
+        return finHeatTransfer
 
     def get_water_properties(self, t_s, t_m):
         water = {
@@ -213,24 +231,26 @@ class System:
         return new_t_e
 
     def water_convection(self, t_s, t_i, pipe_length, pipe_diameter, velocity, flow_rate, no_pipes):
-        # Guess t_e
-        t_e = t_i
-        new_t_e = self.water_heat_transfer(t_s, t_i, t_e, pipe_length, pipe_diameter, velocity, flow_rate)
+        # Shooting Method
+        a = [t_i + 5, t_i + 10]
+        x = [self.water_heat_transfer(t_s, t_i, a[0], pipe_length, pipe_diameter, velocity, flow_rate),
+             self.water_heat_transfer(t_s, t_i, a[1], pipe_length, pipe_diameter, velocity, flow_rate)]
+        e = [x[0] - a[0], x[1] - a[1]]
 
-        while abs(new_t_e - t_e) > 0.25:
-            t_e = new_t_e
-            new_t_e = self.water_heat_transfer(t_s, t_i, t_e, pipe_length, pipe_diameter, velocity, flow_rate)
+        n = 1
+        while abs(e[n]) > 0.1:
+            a.append(a[n] - e[n] * (a[n] - a[n - 1]) / (e[n] - e[n - 1]))
+            x.append(self.water_heat_transfer(t_s, t_i, a[n + 1], pipe_length, pipe_diameter, velocity, flow_rate))
+            e.append(x[n+1] - a[n+1])
+            n += 1
 
-        water = self.get_water_properties(t_s, (t_i + new_t_e) / 2)
+        water = self.get_water_properties(t_s, (t_i + a[-1] / 2))
+        self.outletTemp = a[-1]
 
-        self.outletTemp = new_t_e
-
-        return no_pipes * water["Density"] * flow_rate * water["Cp_f"] * (new_t_e - t_i)
+        return no_pipes * water["Density"] * flow_rate * water["Cp_f"] * (a[-1] - t_i)
 
     def calculate_heat_transfer(self, t_2, h_hs):
-
         # Calculate Heat Transfer Rates
-        self.Q_solar = self.q_solar * self.solarPanel.panelArea
         self.Q_panel_conv = self.panel_convection(t_2, self.get_air_properties(t_2, self.T_inf)) * \
             (self.solarPanel.panelArea - self.heatSink.baseArea)
         self.Q_hs_cond = self.Q_solar - self.Q_panel_conv
@@ -248,6 +268,5 @@ class System:
                                              self.waterPipes.pipeVelocity, self.waterPipes.pipeFlowRate,
                                              self.waterPipes.noPipes)
 
-    def calculate_error(self, Q_solar, Q_panel_conv, Q_fins, Q_pipes):
-        return Q_solar - (Q_panel_conv + Q_fins + Q_pipes)
+        return self.Q_panel_conv + self.Q_fins + self.Q_pipes
 

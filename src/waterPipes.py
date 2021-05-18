@@ -3,8 +3,8 @@ from math import pi
 
 class WaterPipes:
     def __init__(self,
-                 no_pipes: int = 5,
-                 pipe_diameter: float = 0.008,
+                 no_pipes: int = 3,
+                 pipe_diameter: float = 0.0127,
                  pipe_length: float = 0.5,
                  ):
 
