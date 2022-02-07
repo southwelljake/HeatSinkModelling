@@ -1,6 +1,7 @@
 from heatSink import HeatSink
 from waterPipes import WaterPipes
 from solarPanel import SolarPanel
+from fluidProperties import FluidProperties
 from system import System
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
@@ -25,20 +26,21 @@ def run(no_fins_length, no_fins_width, fin_length, fin_width, fin_depth):
                              finDepth=fin_depth)
         solar_panel = SolarPanel()
         water_pipes = WaterPipes()
+        fluid_properties = FluidProperties()
         system = System(heat_sink=heat_sink,
                         solar_panel=solar_panel,
                         water_pipes=water_pipes,
-                        ambient_temp=30,
-                        flow_rate=0.002138/23,
+                        fluid_properties=fluid_properties,
+                        flow_rate=9.3e-5,
                         flow_temp=inlet_temp)
         system.update()
 
-        inlet_temp = system.outletTemp
+        inlet_temp = system.waterPipes.outletTemp
 
-        panel_temp.append(system.T_1)
+        panel_temp.append(system.T_0)
         cost = system.heatSink.cost
 
-    performance = (70 - sum(panel_temp) / 92) * 0.45
+    performance = (72 - sum(panel_temp) / 92) * 0.45
 
     return performance, cost
 

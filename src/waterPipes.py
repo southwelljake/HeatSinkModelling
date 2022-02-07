@@ -4,7 +4,7 @@ from math import pi, exp
 class WaterPipes:
     def __init__(self,
                  no_pipes: int = 3,
-                 pipe_diameter: float = 0.0127,
+                 pipe_diameter: float = 0.02,
                  pipe_length: float = 0.5,
                  ):
 
@@ -13,7 +13,7 @@ class WaterPipes:
         self.pipeLength = pipe_length
         self.pipeFlowRate = 0
         self.pipeVelocity = 0
-        self.inletFlowRate = 0.00036
+        self.inletFlowRate = 0
         self.inletTemp = 30
         self.update_flow_rate()
         self.outletTemp = 0

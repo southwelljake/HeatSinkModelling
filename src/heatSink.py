@@ -12,10 +12,9 @@ class HeatSink:
                  finLength: float = 0.005,
                  finDepth: float = 0.02,
                  conductivity: float = 205,
-                 pipeWeight: float = 1.4135,
                  contactConductivity: float = 3,
                  timThickness: float = 0.001,
-                 h_bar: float = 16.8,
+                 h_bar: float = 22.7,
                  ):
 
         self.noFinsLength = round(noFinsLength)
@@ -50,7 +49,7 @@ class HeatSink:
         self.finPerimeter = 2 * self.finLength + 2 * self.finWidth
 
         self.volume = self.baseArea * self.baseDepth + self.noFins * (self.finArea * self.finDepth)
-        self.mass = self.volume * 2700 + pipeWeight
+        self.mass = self.volume * 2700 + 1.4135
         self.cost = self.mass * 2
 
         self.contactConductivity = contactConductivity
@@ -70,11 +69,11 @@ class HeatSink:
            return m, M
 
         m, M = calculate_fin_constants(self.h_hs, self.finPerimeter, self.conductivity,
-                                        self.finArea, t_b, fluid_properties.T_inf)
+                                       self.finArea, t_b, fluid_properties.T_inf)
 
         finTipHeatTransfer = self.noFins * M * (sinh(m * self.finDepth) +
-                                                            (self.h_hs / (m * self.conductivity))
-                                                         * cosh(m * self.finDepth)) / \
+                                                    (self.h_hs / (m * self.conductivity))
+                                                * cosh(m * self.finDepth)) / \
                                  (cosh(m * self.finDepth) +
                                   (self.h_hs / (m * self.conductivity)) *
                                   sinh(m * self.finDepth))
